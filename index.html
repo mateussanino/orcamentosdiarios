@@ -19,10 +19,17 @@
   .sl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#334155;margin-top:16px;margin-bottom:8px}
   .sl-green{color:#047857}
   select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:28px}
+  .view-banner{background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 16px;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+  body.view-mode input:not(.tab-btn), body.view-mode select{background:#f8fafc!important;cursor:default}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
 <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+  <div id="view-banner" style="display:none" class="view-banner">
+    <svg width="16" height="16" fill="none" stroke="#16a34a" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    <span style="color:#166534;font-size:13px;font-weight:600">Modo visualização</span>
+    <span style="color:#15803d;font-size:12px">Dados compartilhados — somente leitura.</span>
+  </div>
   <header class="mb-6"><div class="flex items-baseline justify-between flex-wrap gap-2">
     <div><p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">HidroGood — Operação Comercial</p>
     <h1 class="text-2xl font-bold text-slate-900">Calculadora de Orçamentos e Vendas</h1></div>
@@ -34,7 +41,7 @@
     <button data-tab="diaria" class="tab-btn px-4 py-3 text-sm tab-inactive">Visão diária</button>
     <button data-tab="mensal" class="tab-btn px-4 py-3 text-sm tab-inactive">Visão mensal</button>
     <button data-tab="historico" class="tab-btn px-4 py-3 text-sm tab-inactive">Histórico</button>
-    <button data-tab="config" class="tab-btn px-4 py-3 text-sm tab-inactive">Configurações</button>
+    <button data-tab="config" id="tab-btn-config" class="tab-btn px-4 py-3 text-sm tab-inactive">Configurações</button>
   </div></nav>
 
   <!-- ORÇAMENTOS -->
@@ -45,7 +52,7 @@
       <div class="text-xs text-slate-500" id="reg-date-info"></div>
     </div><p class="text-xs text-slate-500 mt-2">Quantidade e valor total dos orçamentos por tipo e time.</p></div>
     <div id="reg-units" class="space-y-4"></div>
-    <div class="flex justify-end gap-3">
+    <div id="reg-actions" class="flex justify-end gap-3">
       <button id="btn-clear" class="px-4 py-2 text-sm border border-slate-300 rounded text-slate-600 hover:bg-slate-100">Limpar</button>
       <button id="btn-save" class="px-5 py-2 text-sm bg-slate-900 text-white rounded hover:bg-slate-800 font-medium">Salvar</button>
     </div><div id="save-fb" class="text-right text-xs text-emerald-700 font-medium h-4"></div>
@@ -53,7 +60,7 @@
 
   <!-- VENDAS -->
   <section id="tab-vendas" class="hidden space-y-4">
-    <div class="card p-5">
+    <div id="venda-form-card" class="card p-5">
       <h3 class="font-semibold text-slate-800 mb-3">Registrar venda</h3>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
         <div><label class="block text-xs font-semibold text-slate-600 mb-1">Data do orçamento</label>
@@ -132,6 +139,23 @@
     <button id="btn-exp" class="ml-2 px-4 py-2 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-100">Exportar</button>
     <input type="file" id="btn-imp-f" accept=".json" class="hidden">
     <button id="btn-imp" class="ml-2 px-4 py-2 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-100">Importar</button></div>
+    <!-- COMPARTILHAR -->
+    <div class="card p-5 border-blue-200 bg-blue-50">
+      <h3 class="font-semibold text-blue-900 mb-1">Compartilhar com cliente</h3>
+      <p class="text-xs text-blue-700 mb-3">Gera um link com todos os dados atuais embutidos. O cliente abre em modo somente leitura, sem precisar de login ou instalação.</p>
+      <div class="flex items-center gap-3 flex-wrap">
+        <button id="btn-share" class="px-4 py-2 text-sm bg-blue-700 text-white rounded hover:bg-blue-800 font-medium">Gerar link de compartilhamento</button>
+        <span id="share-fb" class="text-xs text-emerald-700 font-medium"></span>
+      </div>
+      <div id="share-url-box" class="mt-3 hidden">
+        <label class="block text-xs font-semibold text-blue-800 mb-1">Link gerado — copie e envie ao cliente:</label>
+        <div class="flex gap-2">
+          <input type="text" id="share-url-input" readonly class="flex-1 border border-blue-300 rounded px-3 py-2 text-xs bg-white font-mono">
+          <button id="btn-copy-url" class="px-3 py-2 text-xs bg-blue-700 text-white rounded hover:bg-blue-800 whitespace-nowrap">Copiar</button>
+        </div>
+        <p class="text-[10px] text-blue-600 mt-1">O link é longo pois contém todos os dados. Funciona em qualquer navegador.</p>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -140,6 +164,49 @@ const T=['hidro','estufa','combo'],TL={hidro:'Hidroponia',estufa:'Estufa',combo:
 const DCFG={metaPerPerson:3,tickets:{hidro:27000,estufa:16000,combo:43000},mix:{hidro:55,estufa:20,combo:25},workDaysOverride:null,monthStartDate:null,
   units:[{id:'t1',name:'Time 1',members:['Renan','Hugo']},{id:'t2',name:'Time 2',members:['Garelli','Kaliza']},{id:'t3',name:'Time 3',members:['Jeferson','Gabriella']},{id:'t4',name:'Time 4',members:['Bruno','Gabriella']}]};
 let S={config:structuredClone(DCFG),records:{},sales:[]};
+let VIEW_MODE=false;
+
+// ═══ VIEW MODE ═══
+function checkViewMode(){
+  try{
+    const h=location.hash;
+    if(!h.startsWith('#data='))return false;
+    const raw=atob(decodeURIComponent(h.slice(6)));
+    const o=JSON.parse(raw);
+    if(o.config)S.config=o.config;
+    if(o.records)S.records=o.records;
+    if(o.sales)S.sales=o.sales||[];
+    VIEW_MODE=true;return true;
+  }catch(e){console.warn('Falha ao carregar dados do link:',e);return false}
+}
+function applyViewMode(){
+  if(!VIEW_MODE)return;
+  // Disable all inputs/buttons except tab navigation and date/month filters
+  document.querySelectorAll('section:not(.hidden)').forEach(sec=>{
+    sec.querySelectorAll('input[type="number"],input[type="text"],select').forEach(el=>el.disabled=true);
+    sec.querySelectorAll('button').forEach(el=>{if(!el.classList.contains('tab-btn'))el.disabled=true});
+  });
+}
+function genShareLink(){
+  const json=JSON.stringify({config:S.config,records:S.records,sales:S.sales});
+  const b64=encodeURIComponent(btoa(json));
+  const url=location.origin+location.pathname+'#data='+b64;
+  const box=document.getElementById('share-url-box');
+  const inp=document.getElementById('share-url-input');
+  box.classList.remove('hidden');
+  inp.value=url;
+  inp.select();
+  copyToClipboard(url,'share-fb','Link copiado para a área de transferência!');
+}
+function copyToClipboard(text,fbId,msg){
+  const fb=document.getElementById(fbId);
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(()=>{if(fb){fb.textContent=msg;setTimeout(()=>fb.textContent='',3000)}}).catch(()=>{});
+  }else{
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    if(fb){fb.textContent=msg;setTimeout(()=>fb.textContent='',3000)}
+  }
+}
 
 function load(){
   try{const c=localStorage.getItem('hg-config');if(c)S.config=JSON.parse(c)}catch(e){}
@@ -150,9 +217,9 @@ function load(){
   if(!S.config.units)S.config.units=structuredClone(DCFG.units);
   if(!S.sales)S.sales=[];
 }
-function saveCfg(){localStorage.setItem('hg-config',JSON.stringify(S.config))}
-function saveRec(){localStorage.setItem('hg-records',JSON.stringify(S.records))}
-function saveSales(){localStorage.setItem('hg-sales',JSON.stringify(S.sales))}
+function saveCfg(){if(!VIEW_MODE)localStorage.setItem('hg-config',JSON.stringify(S.config))}
+function saveRec(){if(!VIEW_MODE)localStorage.setItem('hg-records',JSON.stringify(S.records))}
+function saveSales(){if(!VIEW_MODE)localStorage.setItem('hg-sales',JSON.stringify(S.sales))}
 
 // FMT
 const f$=v=>{if(v==null||isNaN(v))return'R$ 0';return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0})};
@@ -189,7 +256,7 @@ function adjMeta(ds){const ms=ds.slice(0,7),W=wdCount(ms),mM=W*dMeta(),pos=dayPo
   if(pos<1)return dMeta();let rb=0;wdOf(ms).filter(d=>d<ds).forEach(d=>rb+=orcDay(d).tot);
   const dl=W-pos+1;return dl>0?Math.max((mM-rb)/dl,0):dMeta()}
 
-// SALES STATS (grouped by saleDate)
+// SALES STATS
 function salesByDate(ds){return S.sales.filter(s=>s.saleDate===ds)}
 function salesDay(ds){const sl=salesByDate(ds);const o={tot:0,val:0};T.forEach(t=>o[t]={q:0,v:0,tk:0});
   sl.forEach(s=>{T.forEach(t=>{const q=Number(s[t]?.qtd)||0,v=Number(s[t]?.valor)||0;o[t].q+=q;o[t].v+=v;o.tot+=q;o.val+=v})});
@@ -230,14 +297,17 @@ function renderReg(){
         <input type="number" min="0" step="100" data-u="${u.id}" data-t="${t}" data-f="valor" value="${r.valor??''}" class="ri w-full border border-slate-300 rounded px-2 py-1 text-sm">
         <p class="text-[10px] text-slate-500 mt-1 rk" data-u="${u.id}" data-t="${t}">TK: <span class="font-semibold">${r.qtd>0&&r.valor>0?f$(r.valor/r.qtd):'—'}</span></p></div>`}).join('')}</div>`;
     c.appendChild(card)});
+  if(VIEW_MODE){document.getElementById('reg-actions').style.display='none'}
   c.querySelectorAll('.ri').forEach(i=>i.addEventListener('input',()=>{
+    if(VIEW_MODE)return;
     const u=i.dataset.u,t=i.dataset.t,gv=f=>Number(c.querySelector(`.ri[data-u="${u}"][data-t="${t}"][data-f="${f}"]`)?.value)||0;
-    const q=gv('qtd'),v=gv('valor');c.querySelector(`.rk[data-u="${u}"][data-t="${t}"] span`).textContent=q>0&&v>0?f$(v/q):'—'}))
+    const q=gv('qtd'),v=gv('valor');c.querySelector(`.rk[data-u="${u}"][data-t="${t}"] span`).textContent=q>0&&v>0?f$(v/q):'—'}));
+  applyViewMode();
 }
 function updRegInfo(){const ds=document.getElementById('reg-date').value,i=document.getElementById('reg-date-info');if(!ds){i.textContent='';return}
   if(!isWD(ds))i.innerHTML=`<span class="pill pill-warn">Fim de semana</span>`;
   else i.innerHTML=`Dia útil <span class="num font-semibold">${dayPos(ds)}</span> de <span class="num font-semibold">${wdCount(ds.slice(0,7))}</span>`}
-function onSave(){const ds=document.getElementById('reg-date').value;if(!ds){alert('Selecione data.');return}
+function onSave(){if(VIEW_MODE)return;const ds=document.getElementById('reg-date').value;if(!ds){alert('Selecione data.');return}
   const rec={};document.querySelectorAll('#reg-units .ri').forEach(i=>{const u=i.dataset.u,t=i.dataset.t,f=i.dataset.f;if(!rec[u])rec[u]={};if(!rec[u][t])rec[u][t]={};rec[u][t][f]=Number(i.value)||0});
   Object.keys(rec).forEach(u=>{const tot=T.reduce((s,t)=>s+(rec[u][t]?.qtd||0)+(rec[u][t]?.valor||0),0);if(tot===0)delete rec[u]});
   if(Object.keys(rec).length===0)delete S.records[ds];else S.records[ds]=rec;saveRec();
@@ -245,11 +315,11 @@ function onSave(){const ds=document.getElementById('reg-date').value;if(!ds){ale
 
 // ═══ VENDAS ═══
 function renderVendas(){
-  // Populate unit dropdown
+  if(VIEW_MODE){document.getElementById('venda-form-card').style.display='none'}
   const sel=document.getElementById('sale-unit');sel.innerHTML='<option value="">Selecione...</option>';
   S.config.units.forEach(u=>sel.innerHTML+=`<option value="${u.id}">${u.name} (${u.members.join(', ')||'—'})</option>`);
   if(!document.getElementById('sale-date').value)document.getElementById('sale-date').value=today();
-  updSalePreview();renderSaleList()
+  updSalePreview();renderSaleList();applyViewMode();
 }
 function updSalePreview(){
   const orcDate=document.getElementById('sale-orc-date').value,uid=document.getElementById('sale-unit').value;
@@ -272,7 +342,7 @@ function updSalePreview(){
         <input type="number" min="0" step="100" id="sv-${t}-v" class="w-full border border-emerald-300 rounded px-2 py-1 text-sm bg-white">
       </div>`).join('')}</div>`
 }
-function onSaveSale(){
+function onSaveSale(){if(VIEW_MODE)return;
   const orcDate=document.getElementById('sale-orc-date').value,uid=document.getElementById('sale-unit').value,saleDate=document.getElementById('sale-date').value;
   if(!orcDate||!uid||!saleDate){alert('Preencha data do orçamento, time e data da venda.');return}
   const sale={id:'s'+Date.now(),orcDate,saleDate,unitId:uid};
@@ -289,7 +359,7 @@ function renderSaleList(){
   const ms=mi.value,sl=S.sales.filter(s=>s.saleDate?.slice(0,7)===ms).sort((a,b)=>b.saleDate.localeCompare(a.saleDate));
   const cont=document.getElementById('sale-list');
   if(sl.length===0){cont.innerHTML='<p class="text-xs text-slate-400 py-4">Sem vendas neste mês.</p>';return}
-  let h=`<table><thead><tr><th>Dt venda</th><th>Dt orç.</th><th>Time</th><th class="text-right">Hidro</th><th class="text-right">Estufa</th><th class="text-right">Combo</th><th class="text-right">Total</th><th></th></tr></thead><tbody>`;
+  let h=`<table><thead><tr><th>Dt venda</th><th>Dt orç.</th><th>Time</th><th class="text-right">Hidro</th><th class="text-right">Estufa</th><th class="text-right">Combo</th><th class="text-right">Total</th>${VIEW_MODE?'':'<th></th>'}</tr></thead><tbody>`;
   sl.forEach(s=>{
     const uName=S.config.units.find(u=>u.id===s.unitId)?.name||s.unitId;
     const tot=T.reduce((a,t)=>a+(Number(s[t]?.qtd)||0),0);
@@ -297,10 +367,11 @@ function renderSaleList(){
     h+=`<tr><td class="num">${fD(s.saleDate)}</td><td class="num text-slate-500">${fD(s.orcDate)}</td><td>${uName}</td>`;
     T.forEach(t=>{const q=s[t]?.qtd||0,v=s[t]?.valor||0;h+=`<td class="text-right num">${q>0?`${q} · ${f$(v)}`:'—'}</td>`});
     h+=`<td class="text-right num font-semibold">${tot} · ${f$(totV)}</td>`;
-    h+=`<td class="text-right"><button onclick="delSale('${s.id}')" class="text-rose-500 hover:text-rose-700 text-xs">✕</button></td></tr>`});
+    if(!VIEW_MODE)h+=`<td class="text-right"><button onclick="delSale('${s.id}')" class="text-rose-500 hover:text-rose-700 text-xs">✕</button></td>`;
+    h+=`</tr>`});
   h+=`</tbody></table>`;cont.innerHTML=h
 }
-function delSale(id){if(!confirm('Excluir esta venda?'))return;S.sales=S.sales.filter(s=>s.id!==id);saveSales();renderSaleList()}
+function delSale(id){if(VIEW_MODE||!confirm('Excluir esta venda?'))return;S.sales=S.sales.filter(s=>s.id!==id);saveSales();renderSaleList()}
 
 // ═══ VISÃO DIÁRIA ═══
 function renderDiaria(){
@@ -340,7 +411,7 @@ function renderDiaria(){
       h+=`<tr><td class="font-medium">${TL[t]}</td><td class="text-right num">${fN(o.q)}</td><td class="text-right num">${o.q>0?f$(o.v):'—'}</td><td class="text-right num">${o.q>0?f$(o.tk):'—'}</td>
         <td class="text-right num text-emerald-700">${fN(sv.q)}</td><td class="text-right num text-emerald-700">${sv.q>0?f$(sv.v):'—'}</td><td class="text-right num text-emerald-700">${sv.q>0?f$(sv.tk):'—'}</td></tr>`});
     h+=`</tbody></table></div>`});
-  document.getElementById('diaria-content').innerHTML=h
+  document.getElementById('diaria-content').innerHTML=h;applyViewMode();
 }
 
 // ═══ MENSAL ═══
@@ -384,7 +455,7 @@ function renderMensal(){
       <td class="text-right num text-emerald-700 font-semibold">${fN(vt)}</td><td class="text-right num">${fP(cv)}</td>
       <td class="text-right num">${f$(ov2)}</td><td class="text-right num text-emerald-700">${f$(vv2)}</td></tr>`});
   h+=`</tbody></table></div>`;
-  document.getElementById('mensal-content').innerHTML=h
+  document.getElementById('mensal-content').innerHTML=h;applyViewMode();
 }
 
 // ═══ HISTÓRICO ═══
@@ -400,7 +471,7 @@ function renderHist(){
       <td class="text-right num text-emerald-700 font-semibold">${fN(sd.tot)}</td><td class="text-right num text-emerald-700">${f$(sd.val)}</td>
       <td class="text-right num">${od.tot>0?fP(cv):'—'}</td><td class="text-right"><span class="pill ${s.c}">${fP(r)}</span></td></tr>`});
   if(!any)h+=`<tr><td colspan="7" class="text-center text-slate-400 py-6 text-sm">Sem registros.</td></tr>`;
-  h+=`</tbody></table></div>`;document.getElementById('hist-content').innerHTML=h
+  h+=`</tbody></table></div>`;document.getElementById('hist-content').innerHTML=h;applyViewMode();
 }
 
 // ═══ CONFIG ═══
@@ -416,9 +487,9 @@ function renderCfg(){
       <div class="sm:col-span-7"><label class="block text-[11px] font-semibold text-slate-600 mb-1">Vendedores</label><input type="text" data-ci="${i}" data-cf="members" value="${u.members.join(', ')}" class="border border-slate-300 rounded px-2 py-1.5 text-sm w-full"></div>
       <div class="sm:col-span-2 flex justify-end"><button data-cr="${i}" class="px-3 py-1.5 text-xs border border-rose-300 text-rose-700 rounded hover:bg-rose-50">×</button></div></div>`;
     l.appendChild(d)});
-  l.querySelectorAll('[data-cr]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.cr);if(confirm(`Remover ${S.config.units[i].name}?`)){S.config.units.splice(i,1);renderCfg()}}))
+  l.querySelectorAll('[data-cr]').forEach(b=>b.addEventListener('click',()=>{if(VIEW_MODE)return;const i=Number(b.dataset.cr);if(confirm(`Remover ${S.config.units[i].name}?`)){S.config.units.splice(i,1);renderCfg()}}))
 }
-function onSaveCfg(){
+function onSaveCfg(){if(VIEW_MODE)return;
   S.config.metaPerPerson=Number(document.getElementById('cfg-meta').value)||0;
   S.config.tickets={hidro:Number(document.getElementById('cfg-tkh').value)||0,estufa:Number(document.getElementById('cfg-tke').value)||0,combo:Number(document.getElementById('cfg-tkc').value)||0};
   S.config.mix={hidro:Number(document.getElementById('cfg-mh').value)||0,estufa:Number(document.getElementById('cfg-me').value)||0,combo:Number(document.getElementById('cfg-mc').value)||0};
@@ -434,11 +505,18 @@ function onImpFile(e){const f=e.target.files[0];if(!f)return;const reader=new Fi
   reader.onload=ev=>{try{const o=JSON.parse(ev.target.result);if(!confirm('Substituir dados?'))return;if(o.config)S.config=o.config;if(o.records)S.records=o.records;if(o.sales)S.sales=o.sales;saveCfg();saveRec();saveSales();alert('Importado.');showTab('config')}catch(err){alert('Inválido.')}};reader.readAsText(f)}
 
 function init(){
-  document.getElementById('hoje-label').textContent=`Hoje · ${fD(today())}`;load();
+  document.getElementById('hoje-label').textContent=`Hoje · ${fD(today())}`;
+  const fromHash=checkViewMode();
+  if(!fromHash)load();
+  if(VIEW_MODE){
+    document.getElementById('view-banner').style.display='flex';
+    document.getElementById('tab-btn-config').style.display='none';
+    document.body.classList.add('view-mode');
+  }
   document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
   document.getElementById('reg-date').addEventListener('change',()=>{updRegInfo();renderReg()});
   document.getElementById('btn-save').addEventListener('click',onSave);
-  document.getElementById('btn-clear').addEventListener('click',()=>{if(!confirm('Limpar?'))return;document.querySelectorAll('#reg-units .ri').forEach(i=>i.value='');document.querySelectorAll('#reg-units .rk span').forEach(s=>s.textContent='—')});
+  document.getElementById('btn-clear').addEventListener('click',()=>{if(VIEW_MODE||!confirm('Limpar?'))return;document.querySelectorAll('#reg-units .ri').forEach(i=>i.value='');document.querySelectorAll('#reg-units .rk span').forEach(s=>s.textContent='—')});
   document.getElementById('sale-orc-date').addEventListener('change',updSalePreview);
   document.getElementById('sale-unit').addEventListener('change',updSalePreview);
   document.getElementById('btn-save-sale').addEventListener('click',onSaveSale);
@@ -447,13 +525,18 @@ function init(){
   document.getElementById('mensal-month').addEventListener('change',renderMensal);
   document.getElementById('hist-month').addEventListener('change',renderHist);
   document.getElementById('btn-save-cfg').addEventListener('click',onSaveCfg);
-  document.getElementById('btn-add-u').addEventListener('click',()=>{S.config.units.push({id:'u'+Date.now(),name:'Nova '+(S.config.units.length+1),members:[]});renderCfg()});
-  document.getElementById('btn-reset-cfg').addEventListener('click',()=>{if(!confirm('Restaurar?'))return;S.config=structuredClone(DCFG);saveCfg();renderCfg()});
-  document.getElementById('btn-wipe').addEventListener('click',()=>{if(!confirm('Apagar TUDO?'))return;S.records={};S.sales=[];saveRec();saveSales();alert('Apagado.')});
+  document.getElementById('btn-add-u').addEventListener('click',()=>{if(VIEW_MODE)return;S.config.units.push({id:'u'+Date.now(),name:'Nova '+(S.config.units.length+1),members:[]});renderCfg()});
+  document.getElementById('btn-reset-cfg').addEventListener('click',()=>{if(VIEW_MODE||!confirm('Restaurar?'))return;S.config=structuredClone(DCFG);saveCfg();renderCfg()});
+  document.getElementById('btn-wipe').addEventListener('click',()=>{if(VIEW_MODE||!confirm('Apagar TUDO?'))return;S.records={};S.sales=[];saveRec();saveSales();alert('Apagado.')});
   document.getElementById('btn-exp').addEventListener('click',onExp);
-  document.getElementById('btn-imp').addEventListener('click',()=>document.getElementById('btn-imp-f').click());
+  document.getElementById('btn-imp').addEventListener('click',()=>{if(VIEW_MODE)return;document.getElementById('btn-imp-f').click()});
   document.getElementById('btn-imp-f').addEventListener('change',onImpFile);
-  showTab('registrar')
+  document.getElementById('btn-share').addEventListener('click',genShareLink);
+  document.getElementById('btn-copy-url').addEventListener('click',()=>{
+    const url=document.getElementById('share-url-input').value;
+    copyToClipboard(url,'share-fb','Copiado!');
+  });
+  showTab(VIEW_MODE?'diaria':'registrar')
 }
 init();
 </script>
