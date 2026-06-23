@@ -315,9 +315,9 @@ function updSalePreview(){
 function onSaveSale(){if(VIEW_MODE)return;
   const orcDate=document.getElementById('sale-orc-date').value,uid=document.getElementById('sale-unit').value,saleDate=document.getElementById('sale-date').value;
   if(!orcDate||!uid||!saleDate){alert('Preencha todos os campos.');return}
-  const sale={id:'s'+Date.now(),orcDate,saleDate,unitId:uid,hidro:{qtd:0,valor:0},estufa:{qtd:0,valor:0},combo:{qtd:0,valor:0}};
+  const sale={id:'s'+Date.now(),orcDate,saleDate,unitId:uid};
   let anyQty=false;
-  T.forEach(t=>{const q=Number(document.getElementById(`sv-${t}-q`)?.value)||0,v=Number(document.getElementById(`sv-${t}-v`)?.value)||0;sale[t]={qtd:q,valor:v};if(q>0)anyQty=true});
+  T.forEach(t=>{const q=Number(document.getElementById(`sv-${t}-q`)?.value)||0,v=Number(document.getElementById(`sv-${t}-v`)?.value)||0;if(q>0){sale[t]={qtd:q,valor:v};anyQty=true}});
   if(!anyQty){alert('Insira ao menos uma venda.');return}
   S.sales.push(sale);saveSales();
   document.getElementById('sale-fb').textContent='Venda salva.';setTimeout(()=>document.getElementById('sale-fb').textContent='',3000);
