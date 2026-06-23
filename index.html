@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calculadora de Orçamentos e Vendas — HidroGood</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
   .tab-active{border-bottom:2px solid #0f172a;color:#0f172a;font-weight:600}.tab-inactive{border-bottom:2px solid transparent;color:#64748b}.tab-inactive:hover{color:#334155}
@@ -127,7 +128,7 @@
     <button id="btn-imp" class="ml-2 px-4 py-2 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-100">Importar</button></div>
     <div class="card p-5 border-blue-200 bg-blue-50">
       <h3 class="font-semibold text-blue-900 mb-1">Compartilhar com cliente</h3>
-      <p class="text-xs text-blue-700 mb-3">Gera um link com todos os dados atuais embutidos. O cliente abre em modo somente leitura, direto no dia anterior.</p>
+      <p class="text-xs text-blue-700 mb-3">Gera um link comprimido com todos os dados. O cliente abre em modo somente leitura, direto no dia anterior.</p>
       <div class="flex items-center gap-3 flex-wrap">
         <button id="btn-share" class="px-4 py-2 text-sm bg-blue-700 text-white rounded hover:bg-blue-800 font-medium">Gerar link de compartilhamento</button>
         <span id="share-fb" class="text-xs text-emerald-700 font-medium"></span>
@@ -138,7 +139,7 @@
           <input type="text" id="share-url-input" readonly class="flex-1 border border-blue-300 rounded px-3 py-2 text-xs bg-white font-mono">
           <button id="btn-copy-url" class="px-3 py-2 text-xs bg-blue-700 text-white rounded hover:bg-blue-800 whitespace-nowrap">Copiar</button>
         </div>
-        <p class="text-[10px] text-blue-600 mt-1">O link é longo pois contém todos os dados. Funciona em qualquer navegador.</p>
+        <p id="share-size-info" class="text-[10px] text-blue-600 mt-1"></p>
       </div>
     </div>
   </section>
@@ -146,7 +147,7 @@
 <script>
 const T=['hidro','estufa','combo'],TL={hidro:'Hidroponia',estufa:'Estufa',combo:'Hidro + Estufa'};
 const DCFG={metaPerPerson:3,tickets:{hidro:27000,estufa:16000,combo:43000},mix:{hidro:55,estufa:20,combo:25},workDaysOverride:null,monthStartDate:null,
-  units:[{id:'t1',name:'Time 1',members:['Renan','Hugo']},{id:'t2',name:'Time 2',members:['Garelli','Kaliza']},{id:'t3',name:'Time 3',members:['Jeferson','Gabriella']},{id:'t4',name:'Time 4',members:['Bruno','Gabriella']}]};
+  units:[{id:'t1',name:'Time 1',members:['Renan','Hugo']},{id:'t2',name:'Time 2',members:['Gerelli','Kaliza']},{id:'t3',name:'Time 3',members:['Jeferson','Gabriella']},{id:'t4',name:'Time 4',members:['Bruno','Gabriella']}]};
 let S={config:structuredClone(DCFG),records:{},sales:[]};
 let VIEW_MODE=false;
 
@@ -154,13 +155,15 @@ function checkViewMode(){
   try{
     const h=location.hash;
     if(!h.startsWith('#data='))return false;
-    const raw=atob(decodeURIComponent(h.slice(6)));
-    const o=JSON.parse(raw);
+    const compressed=decodeURIComponent(h.slice(6));
+    const json=LZString.decompressFromEncodedURIComponent(compressed);
+    if(!json)return false;
+    const o=JSON.parse(json);
     if(o.config)S.config=o.config;
     if(o.records)S.records=o.records;
     if(o.sales)S.sales=o.sales||[];
     VIEW_MODE=true;return true;
-  }catch(e){return false}
+  }catch(e){console.warn('Falha ao carregar dados:',e);return false}
 }
 function applyViewMode(){
   if(!VIEW_MODE)return;
@@ -171,12 +174,13 @@ function applyViewMode(){
 }
 function genShareLink(){
   const json=JSON.stringify({config:S.config,records:S.records,sales:S.sales});
-  const b64=encodeURIComponent(btoa(json));
-  const url=location.origin+location.pathname+'#data='+b64;
+  const compressed=LZString.compressToEncodedURIComponent(json);
+  const url=location.origin+location.pathname+'#data='+compressed;
   const box=document.getElementById('share-url-box');
-  const inp=document.getElementById('share-url-input');
   box.classList.remove('hidden');
+  const inp=document.getElementById('share-url-input');
   inp.value=url;inp.select();
+  document.getElementById('share-size-info').textContent=`Tamanho do link: ${url.length.toLocaleString('pt-BR')} caracteres`;
   copyToClipboard(url,'share-fb','Link copiado!');
 }
 function copyToClipboard(text,fbId,msg){
@@ -265,9 +269,8 @@ function renderReg(){
         <input type="number" min="0" step="100" data-u="${u.id}" data-t="${t}" data-f="valor" value="${r.valor??''}" class="ri w-full border border-slate-300 rounded px-2 py-1 text-sm">
         <p class="text-[10px] text-slate-500 mt-1 rk" data-u="${u.id}" data-t="${t}">TK: <span class="font-semibold">${r.qtd>0&&r.valor>0?f$(r.valor/r.qtd):'—'}</span></p></div>`}).join('')}</div>`;
     c.appendChild(card)});
-  if(VIEW_MODE){document.getElementById('reg-actions').style.display='none'}
-  c.querySelectorAll('.ri').forEach(i=>i.addEventListener('input',()=>{
-    if(VIEW_MODE)return;
+  if(VIEW_MODE)document.getElementById('reg-actions').style.display='none';
+  c.querySelectorAll('.ri').forEach(i=>i.addEventListener('input',()=>{if(VIEW_MODE)return;
     const u=i.dataset.u,t=i.dataset.t,gv=f=>Number(c.querySelector(`.ri[data-u="${u}"][data-t="${t}"][data-f="${f}"]`)?.value)||0;
     const q=gv('qtd'),v=gv('valor');c.querySelector(`.rk[data-u="${u}"][data-t="${t}"] span`).textContent=q>0&&v>0?f$(v/q):'—'}));
   applyViewMode();
@@ -282,7 +285,7 @@ function onSave(){if(VIEW_MODE)return;const ds=document.getElementById('reg-date
   const fb=document.getElementById('save-fb');fb.textContent=`Salvo ${fD(ds)}.`;setTimeout(()=>fb.textContent='',2500)}
 
 function renderVendas(){
-  if(VIEW_MODE){document.getElementById('venda-form-card').style.display='none'}
+  if(VIEW_MODE)document.getElementById('venda-form-card').style.display='none';
   const sel=document.getElementById('sale-unit');sel.innerHTML='<option value="">Selecione...</option>';
   S.config.units.forEach(u=>sel.innerHTML+=`<option value="${u.id}">${u.name} (${u.members.join(', ')||'—'})</option>`);
   if(!document.getElementById('sale-date').value)document.getElementById('sale-date').value=today();
@@ -291,35 +294,34 @@ function renderVendas(){
 function updSalePreview(){
   const orcDate=document.getElementById('sale-orc-date').value,uid=document.getElementById('sale-unit').value;
   const prev=document.getElementById('sale-orc-preview'),inp=document.getElementById('sale-inputs');
-  if(!orcDate||!uid){prev.innerHTML='<p class="text-xs text-slate-400">Selecione data do orçamento e time para ver os dados.</p>';inp.innerHTML='';return}
+  if(!orcDate||!uid){prev.innerHTML='<p class="text-xs text-slate-400">Selecione data do orçamento e time.</p>';inp.innerHTML='';return}
   const ud=unitOrcDay(uid,orcDate);
-  if(ud.tot===0){prev.innerHTML=`<p class="text-xs text-amber-600">Nenhum orçamento registrado para este time em ${fD(orcDate)}.</p>`;inp.innerHTML='';return}
+  if(ud.tot===0){prev.innerHTML=`<p class="text-xs text-amber-600">Nenhum orçamento em ${fD(orcDate)}.</p>`;inp.innerHTML='';return}
   const uName=S.config.units.find(u=>u.id===uid)?.name||uid;
   prev.innerHTML=`<div class="bg-slate-50 rounded p-3 border border-slate-200">
     <p class="text-xs font-semibold text-slate-600 mb-2">Orçamentos de ${uName} em ${fD(orcDate)}</p>
     <div class="grid grid-cols-3 gap-3 text-xs">${T.map(t=>`<div><span class="font-semibold">${TL[t]}</span><br>${ud[t].q} orç. · ${f$(ud[t].v)}<br>TK: ${ud[t].q>0?f$(ud[t].tk):'—'}</div>`).join('')}</div>
-    <p class="text-xs text-slate-500 mt-2">Total: ${ud.tot} orçamentos · ${f$(ud.val)}</p></div>`;
+    <p class="text-xs text-slate-500 mt-2">Total: ${ud.tot} · ${f$(ud.val)}</p></div>`;
   inp.innerHTML=`<p class="text-xs font-semibold text-slate-600 mb-2 mt-3">Dados da venda</p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">${T.map(t=>`
       <div class="bg-emerald-50 rounded p-3 border border-emerald-200">
         <p class="text-xs font-semibold text-emerald-800 mb-2">${TL[t]} <span class="font-normal text-slate-500">(orç: ${ud[t].q})</span></p>
         <label class="block text-[10px] text-slate-500">Qtd vendida</label>
-        <input type="number" min="0" step="1" id="sv-${t}-q" class="w-full border border-emerald-300 rounded px-2 py-1 text-sm mb-1 bg-white" max="${ud[t].q}">
-        <label class="block text-[10px] text-slate-500">Valor vendido (R$)</label>
+        <input type="number" min="0" step="1" id="sv-${t}-q" class="w-full border border-emerald-300 rounded px-2 py-1 text-sm mb-1 bg-white">
+        <label class="block text-[10px] text-slate-500">Valor (R$)</label>
         <input type="number" min="0" step="100" id="sv-${t}-v" class="w-full border border-emerald-300 rounded px-2 py-1 text-sm bg-white">
       </div>`).join('')}</div>`
 }
 function onSaveSale(){if(VIEW_MODE)return;
   const orcDate=document.getElementById('sale-orc-date').value,uid=document.getElementById('sale-unit').value,saleDate=document.getElementById('sale-date').value;
-  if(!orcDate||!uid||!saleDate){alert('Preencha data do orçamento, time e data da venda.');return}
-  const sale={id:'s'+Date.now(),orcDate,saleDate,unitId:uid};let anyQty=false;
+  if(!orcDate||!uid||!saleDate){alert('Preencha todos os campos.');return}
+  const sale={id:'s'+Date.now(),orcDate,saleDate,unitId:uid,hidro:{qtd:0,valor:0},estufa:{qtd:0,valor:0},combo:{qtd:0,valor:0}};
+  let anyQty=false;
   T.forEach(t=>{const q=Number(document.getElementById(`sv-${t}-q`)?.value)||0,v=Number(document.getElementById(`sv-${t}-v`)?.value)||0;sale[t]={qtd:q,valor:v};if(q>0)anyQty=true});
   if(!anyQty){alert('Insira ao menos uma venda.');return}
   S.sales.push(sale);saveSales();
-  const fb=document.getElementById('sale-fb');fb.textContent=`Venda salva.`;setTimeout(()=>fb.textContent='',3000);
-  T.forEach(t=>{const qi=document.getElementById(`sv-${t}-q`),vi=document.getElementById(`sv-${t}-v`);if(qi)qi.value='';if(vi)vi.value=''});
-  renderSaleList()
-}
+  document.getElementById('sale-fb').textContent='Venda salva.';setTimeout(()=>document.getElementById('sale-fb').textContent='',3000);
+  T.forEach(t=>{['q','v'].forEach(f=>{const el=document.getElementById(`sv-${t}-${f}`);if(el)el.value=''})});renderSaleList()}
 function renderSaleList(){
   const mi=document.getElementById('sale-list-month');if(!mi.value)mi.value=thisMo();
   const ms=mi.value,sl=S.sales.filter(s=>s.saleDate?.slice(0,7)===ms).sort((a,b)=>b.saleDate.localeCompare(a.saleDate));
@@ -330,19 +332,18 @@ function renderSaleList(){
     const uName=S.config.units.find(u=>u.id===s.unitId)?.name||s.unitId;
     const tot=T.reduce((a,t)=>a+(Number(s[t]?.qtd)||0),0),totV=T.reduce((a,t)=>a+(Number(s[t]?.valor)||0),0);
     h+=`<tr><td class="num">${fD(s.saleDate)}</td><td class="num text-slate-500">${fD(s.orcDate)}</td><td>${uName}</td>`;
-    T.forEach(t=>{const q=s[t]?.qtd||0,v=s[t]?.valor||0;h+=`<td class="text-right num">${q>0?`${q} · ${f$(v)}`:'—'}</td>`});
-    h+=`<td class="text-right num font-semibold">${tot} · ${f$(totV)}</td>`;
-    if(!VIEW_MODE)h+=`<td class="text-right"><button onclick="delSale('${s.id}')" class="text-rose-500 hover:text-rose-700 text-xs">✕</button></td>`;
+    T.forEach(t=>{const q=s[t]?.qtd||0,v=s[t]?.valor||0;h+=`<td class="text-right num">${q>0?`${q}·${f$(v)}`:'—'}</td>`});
+    h+=`<td class="text-right num font-semibold">${tot}·${f$(totV)}</td>`;
+    if(!VIEW_MODE)h+=`<td><button onclick="delSale('${s.id}')" class="text-rose-500 text-xs">✕</button></td>`;
     h+=`</tr>`});
-  h+=`</tbody></table>`;cont.innerHTML=h
-}
-function delSale(id){if(VIEW_MODE||!confirm('Excluir esta venda?'))return;S.sales=S.sales.filter(s=>s.id!==id);saveSales();renderSaleList()}
+  cont.innerHTML=h+`</tbody></table>`}
+function delSale(id){if(VIEW_MODE||!confirm('Excluir?'))return;S.sales=S.sales.filter(s=>s.id!==id);saveSales();renderSaleList()}
 
 function renderDiaria(){
   const di=document.getElementById('view-date');
   if(!di.value)di.value=VIEW_MODE?yesterday():today();
   const ds=di.value,ms=ds.slice(0,7),pos=dayPos(ds),W=wdCount(ms);
-  document.getElementById('view-date-info').innerHTML=pos>0?`Dia útil <span class="num font-semibold">${pos}</span> de <span class="num font-semibold">${W}</span>`:`<span class="pill pill-warn">Fora dos dias úteis</span>`;
+  document.getElementById('view-date-info').innerHTML=pos>0?`Dia útil <span class="num font-semibold">${pos}</span>/<span class="num font-semibold">${W}</span>`:`<span class="pill pill-warn">Fora dos dias úteis</span>`;
   const od=orcDay(ds),dm=dMeta(),am=adjMeta(ds),tk=S.config.tickets;
   const ratio=am>0?od.tot/am:0,st=stR(ratio);
   const mRev=am*((S.config.mix.hidro/100)*tk.hidro+(S.config.mix.estufa/100)*tk.estufa+(S.config.mix.combo/100)*tk.combo);
@@ -351,10 +352,9 @@ function renderDiaria(){
     ${kpi('Orçamentos',fN(od.tot),`Meta: ${dm}`)}${kpi('Meta ajustada',fN(am,1),'Gap acum.')}
     ${kpi('Status',`<span class="pill ${st.c}">${st.l}</span>`,fP(ratio))}${kpi('Pipeline orç.',f$(od.val),`Meta: ${f$(mRev)}`)}</div></div>
     <p class="sl sl-green">Vendas fechadas neste dia</p><div class="card p-4 border-emerald-200"><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-    ${kpi('Vendas',fN(sd.tot),`de ${fN(od.tot)} orçamentos no dia`)}${kpi('Pipeline vendas',f$(sd.val),'')}
-    ${kpi('Conversão',fP(conv),'vendas / orç. do dia')}${kpi('TK vendas',sd.tot>0?f$(sd.val/sd.tot):'—','')}</div></div>`;
-  h+=`<p class="sl">Por tipo</p><div class="card overflow-x-auto"><table>
-    <thead><tr><th>Tipo</th><th class="text-right">Orç. qtd</th><th class="text-right">Orç. TK</th><th class="text-right">TK meta</th><th class="text-right">Δ TK</th><th class="text-right text-emerald-700">Vendas qtd</th><th class="text-right text-emerald-700">Vendas TK</th></tr></thead><tbody>`;
+    ${kpi('Vendas',fN(sd.tot),`de ${fN(od.tot)} orç.`)}${kpi('Pipeline vendas',f$(sd.val),'')}
+    ${kpi('Conversão',fP(conv),'')}${kpi('TK vendas',sd.tot>0?f$(sd.val/sd.tot):'—','')}</div></div>`;
+  h+=`<p class="sl">Por tipo</p><div class="card overflow-x-auto"><table><thead><tr><th>Tipo</th><th class="text-right">Orç.</th><th class="text-right">Orç. TK</th><th class="text-right">TK meta</th><th class="text-right">Δ TK</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right text-emerald-700">Vendas TK</th></tr></thead><tbody>`;
   T.forEach(t=>{const o=od[t],s=sd[t],dl=o.tk-tk[t];
     h+=`<tr><td class="font-medium">${TL[t]}</td><td class="text-right num">${fN(o.q)}</td><td class="text-right num">${o.q>0?f$(o.tk):'—'}</td>
       <td class="text-right num text-slate-500">${f$(tk[t])}</td><td class="text-right num ${dl>=0?'text-emerald-700':'text-rose-700'}">${o.q>0?(dl>=0?'+':'')+f$(dl):'—'}</td>
@@ -365,9 +365,9 @@ function renderDiaria(){
     const r=meta>0?uo.tot/meta:(uo.tot>0?1:0),s=stR(r),cv=uo.tot>0?us.tot/uo.tot:0;
     h+=`<div class="card overflow-x-auto mb-3"><div class="px-4 pt-3 flex items-baseline justify-between flex-wrap gap-2">
       <div><h4 class="font-semibold text-slate-800">${u.name} <span class="text-xs text-slate-500 font-normal">(${u.members.join(', ')||'—'})</span></h4>
-      <p class="text-xs text-slate-500">Orç: ${uo.tot}/${meta} · <span class="text-emerald-700">Vendas: ${us.tot}</span> · Conv: ${fP(cv)} · Pipeline orç: ${f$(uo.val)} · <span class="text-emerald-700">Pipeline vendas: ${f$(us.val)}</span></p></div>
+      <p class="text-xs text-slate-500">Orç: ${uo.tot}/${meta} · <span class="text-emerald-700">Vendas: ${us.tot}</span> · Conv: ${fP(cv)}</p></div>
       <span class="pill ${s.c}">${s.l}</span></div>
-      <table class="mt-2"><thead><tr><th>Tipo</th><th class="text-right">Orç. qtd</th><th class="text-right">Orç. valor</th><th class="text-right">Orç. TK</th><th class="text-right text-emerald-700">Vendas qtd</th><th class="text-right text-emerald-700">Vendas valor</th><th class="text-right text-emerald-700">Vendas TK</th></tr></thead><tbody>`;
+      <table class="mt-2"><thead><tr><th>Tipo</th><th class="text-right">Orç. qtd</th><th class="text-right">Orç. valor</th><th class="text-right">Orç. TK</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right text-emerald-700">Valor</th><th class="text-right text-emerald-700">TK</th></tr></thead><tbody>`;
     T.forEach(t=>{const o=uo[t],sv=us[t];
       h+=`<tr><td class="font-medium">${TL[t]}</td><td class="text-right num">${fN(o.q)}</td><td class="text-right num">${o.q>0?f$(o.v):'—'}</td><td class="text-right num">${o.q>0?f$(o.tk):'—'}</td>
         <td class="text-right num text-emerald-700">${fN(sv.q)}</td><td class="text-right num text-emerald-700">${sv.q>0?f$(sv.v):'—'}</td><td class="text-right num text-emerald-700">${sv.q>0?f$(sv.tk):'—'}</td></tr>`});
@@ -388,19 +388,17 @@ function renderMensal(){
   let h=`<p class="sl">Orçamentos — acumulado</p><div class="card p-4"><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
     ${kpi('Realizado',fN(om.tot),`de ${fN(mM)}`)}${kpi('Pacing',`<span class="pill ${stP.c}">${fP(pacing)}</span>`,`Esp: ${fN(exp)}`)}
     ${kpi('Projeção',fN(proj,0),`Δ: ${(proj-mM>=0?'+':'')+fN(proj-mM,0)}`)}${kpi('Necess./dia',rem>0?fN(need,1):'—',rem>0?`${rem} dias rest.`:'Encerrado')}</div></div>
-    <p class="sl sl-green">Vendas — acumulado no mês</p><div class="card p-4 border-emerald-200"><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <p class="sl sl-green">Vendas — acumulado</p><div class="card p-4 border-emerald-200"><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
     ${kpi('Total vendas',fN(sm.tot),`de ${fN(om.tot)} orç.`)}${kpi('Pipeline vendas',f$(sm.val),'')}
     ${kpi('Conversão',fP(conv),'')}${kpi('TK vendas',sm.tot>0?f$(sm.val/sm.tot):'—','')}</div></div>`;
-  h+=`<p class="sl">Por tipo</p><div class="card overflow-x-auto"><table>
-    <thead><tr><th>Tipo</th><th class="text-right">Orç.</th><th class="text-right">Meta mês</th><th class="text-right">Orç. TK</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right text-emerald-700">Vendas TK</th><th class="text-right">Conv.</th><th class="text-right">Receita orç.</th><th class="text-right text-emerald-700">Receita vendas</th></tr></thead><tbody>`;
+  h+=`<p class="sl">Por tipo</p><div class="card overflow-x-auto"><table><thead><tr><th>Tipo</th><th class="text-right">Orç.</th><th class="text-right">Meta</th><th class="text-right">Orç.TK</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right text-emerald-700">TK</th><th class="text-right">Conv.</th><th class="text-right">Rec.orç.</th><th class="text-right text-emerald-700">Rec.vendas</th></tr></thead><tbody>`;
   T.forEach(t=>{const o=om[t],s=sm[t],cv=o.q>0?s.q/o.q:0;
     h+=`<tr><td class="font-medium">${TL[t]}</td><td class="text-right num">${fN(o.q)}</td><td class="text-right num text-slate-500">${fN(mqM[t],1)}</td>
       <td class="text-right num">${o.q>0?f$(o.tk):'—'}</td><td class="text-right num text-emerald-700 font-semibold">${fN(s.q)}</td>
       <td class="text-right num text-emerald-700">${s.q>0?f$(s.tk):'—'}</td><td class="text-right num">${fP(cv)}</td>
       <td class="text-right num">${f$(o.v)}</td><td class="text-right num text-emerald-700">${f$(s.v)}</td></tr>`});
   h+=`</tbody></table></div>`;
-  h+=`<p class="sl">Por time</p><div class="card overflow-x-auto"><table>
-    <thead><tr><th>Time</th><th class="text-right">Orç.</th><th class="text-right">Meta</th><th class="text-right">%</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right">Conv.</th><th class="text-right">Pipeline orç.</th><th class="text-right text-emerald-700">Pipeline vendas</th></tr></thead><tbody>`;
+  h+=`<p class="sl">Por time</p><div class="card overflow-x-auto"><table><thead><tr><th>Time</th><th class="text-right">Orç.</th><th class="text-right">Meta</th><th class="text-right">%</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right">Conv.</th><th class="text-right">Pipeline orç.</th><th class="text-right text-emerald-700">Pipeline vendas</th></tr></thead><tbody>`;
   S.config.units.forEach(u=>{
     let ot=0,ov2=0,vt=0,vv2=0;
     wdOf(ms).forEach(d=>{const ud=unitOrcDay(u.id,d);ot+=ud.tot;ov2+=ud.val});
@@ -418,8 +416,7 @@ function renderMensal(){
 function renderHist(){
   const mi=document.getElementById('hist-month');if(!mi.value)mi.value=thisMo();
   const days=wdOf(mi.value),dm2=dMeta();
-  let h=`<div class="card overflow-x-auto"><table>
-    <thead><tr><th>Data</th><th class="text-right">Orç.</th><th class="text-right">Pipeline orç.</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right text-emerald-700">Pipeline vendas</th><th class="text-right">Conv.</th><th class="text-right">% meta</th></tr></thead><tbody>`;
+  let h=`<div class="card overflow-x-auto"><table><thead><tr><th>Data</th><th class="text-right">Orç.</th><th class="text-right">Pipeline orç.</th><th class="text-right text-emerald-700">Vendas</th><th class="text-right text-emerald-700">Pipeline vendas</th><th class="text-right">Conv.</th><th class="text-right">% meta</th></tr></thead><tbody>`;
   let any=false;
   days.forEach(d=>{const od=orcDay(d),sd=salesDay(d);if(od.tot===0&&sd.tot===0)return;any=true;
     const r=dm2>0?od.tot/dm2:0,s=stR(r),cv=od.tot>0?sd.tot/od.tot:0;
@@ -427,7 +424,7 @@ function renderHist(){
       <td class="text-right num text-emerald-700 font-semibold">${fN(sd.tot)}</td><td class="text-right num text-emerald-700">${f$(sd.val)}</td>
       <td class="text-right num">${od.tot>0?fP(cv):'—'}</td><td class="text-right"><span class="pill ${s.c}">${fP(r)}</span></td></tr>`});
   if(!any)h+=`<tr><td colspan="7" class="text-center text-slate-400 py-6 text-sm">Sem registros.</td></tr>`;
-  h+=`</tbody></table></div>`;document.getElementById('hist-content').innerHTML=h;applyViewMode();
+  document.getElementById('hist-content').innerHTML=h+`</tbody></table></div>`;applyViewMode();
 }
 
 function renderCfg(){
@@ -486,7 +483,7 @@ function init(){
   document.getElementById('btn-imp').addEventListener('click',()=>{if(VIEW_MODE)return;document.getElementById('btn-imp-f').click()});
   document.getElementById('btn-imp-f').addEventListener('change',onImpFile);
   document.getElementById('btn-share').addEventListener('click',genShareLink);
-  document.getElementById('btn-copy-url').addEventListener('click',()=>{copyToClipboard(document.getElementById('share-url-input').value,'share-fb','Copiado!')});
+  document.getElementById('btn-copy-url').addEventListener('click',()=>copyToClipboard(document.getElementById('share-url-input').value,'share-fb','Copiado!'));
   showTab(VIEW_MODE?'diaria':'registrar')
 }
 init();
